@@ -1,21 +1,7 @@
 /* OTUS C-2023-07 Барашева Ангелина ДЗ к 6 занятию "Алгоритмы поиска и сортировки"
 Реализация хеш-таблицы с открытой адресацией
-С открытой адресацией это значит, что если наша хеш-функция не совершенна и в результате работы с ней мы хотим использовать уже занятую ячейку,
-то нам придётся искать следующий свободный слот памяти и записать туда
 
-Для создания хеш-функции нужно предположить, какое примерно количество разных слов в файле ожидается
-кодировка, файла, таблица Windows CP-1251 для нахождения суммы слов
-
-т.е. у нас будет 3 колонки ID, слово, частота его встречаемости
-
-в самой программе мы берём файл, считываем все слова в один большой массив и работаем с массивом или работаем как с одной большой строкой, но строки скорее вссего будут
-заканчиваться
-смотрим, сколько у нас слов это делаем с помощью определения количества пробелов
-
-можем создать тупо столько ячеек, сколько слов в файле, чтобы  точно хватило и коллизий не возникло, но ТО поиск по таблице будет занимать много времени, т.к.
-достаточно ячеек будут пустыми
-
-вход: путь файла, как массив / файл как параметр входа в программу
+вход: путь файла
 выход: частота встречаемости слова
 возврат: 0 */
 
@@ -28,30 +14,43 @@
 
 unsigned long count_word = 0; // количество слов в файле, size of the Hash Table
 
+/*----------------------------------------------------------------------------------------------
+
+Функция:    hash_function
+Назначение: Функция "Хеш-функция"
+Описание:   Функция вычисляет хеш-значения, складывая элементы в строке и находит остаток от
+            деления на количество всех слов в файле
+Вход:       str - массив символов типа unsigned char
+
+Выход:      -
+Возврат:    значение хеш-функции
+
+-----------------------------------------------------------------------------------------------*/
+
+const int p = 170;  // сумма русских и английских строчных и заглавныз букв
+
 unsigned long hash_function(unsigned char * str) {
-    unsigned long i = 0;
-    for(int j = 0; str[j]; j++) {
-        i += str[j];
+    unsigned long hash = 0, p_pow = 1;
+    for(size_t i = 0; str[i]; i++) {
+        hash += (str[i] + 1) * p_pow;
+        p_pow *= p;
     }
-    //printf("%d\n", i);
-    return i % count_word;
+    return hash % count_word;
 }
 
+// Структура пары ключ значение в хеш-таблице
 typedef struct Ht_item Ht_item;
 
-// Define the Hash Table Item here
+// Структура пары ключ значение в хеш-таблице
 struct Ht_item {
-    unsigned char * key;
+    unsigned char * key;    // Слово из файла, ключ
     unsigned int value;
     unsigned int size_key;
 };
 
 typedef struct HashTable HashTable;
 
-// Define the Hash Table here
 struct HashTable {
-    // Contains an array of pointers
-    // to items
     Ht_item ** items;
     unsigned int size;
     unsigned int count;
@@ -72,23 +71,32 @@ unsigned int size_of_key = 0;    // размер ключа
 
 -----------------------------------------------------------------------------------------------*/
 
-Ht_item * create_item(unsigned char * key, unsigned int value) {
-    // Creates a pointer to a new hash table item
+Ht_item * create_item(unsigned char* key, unsigned int value) {
     int i = 0;
-    Ht_item*item = (Ht_item*)malloc(sizeof(Ht_item));
-    item->size_key = 0;
-    while(key[i]!=0) {item->size_key++; i++;}
+    Ht_item* item = (Ht_item*)calloc(1, sizeof(Ht_item));
+    if(!item) {printf("Allocation error"); exit(1);}
 
-    printf("%d\n", item->size_key);
+    while(key[i]!=0) {item->size_key++; i++;}
 
     item->key = (unsigned char*)calloc(item->size_key + 1, sizeof(unsigned char));
 
-    memcpy(item->key, key, item->size_key*sizeof(unsigned char));
+    memcpy(item->key, key, (item->size_key+1)*sizeof(unsigned char));
     item->value = value;
-    //item->size_key = size_of_key;
 
     return item;
 }
+
+/*----------------------------------------------------------------------------------------------
+
+Функция:    create_table
+Назначение: Функция "Создать хеш-таблицу"
+Описание:   Функция создаёт хеш-таблицу
+Вход:       size - размер таблицы
+
+Выход:      -
+Возврат:    указатель на структуру типа HashTable * - хеш-таблица
+
+-----------------------------------------------------------------------------------------------*/
 
 HashTable * create_table(unsigned int size) {
     // Creates a new HashTable
@@ -99,35 +107,70 @@ HashTable * create_table(unsigned int size) {
     for(int i = 0; i < table->size; i++) {
         table->items[i] = NULL;
     }
-    //table->overflow_buckets = create_overflow_buckets(table);
     return table;
 }
 
+/*----------------------------------------------------------------------------------------------
+
+Функция:    free_item
+Назначение: Функция "Освободить память под пару ключ-значение"
+Описание:   Функция освобождает память под пару ключ-значение
+Вход:       item - пара ключ-значение
+
+Выход:      -
+Возврат:    -
+
+-----------------------------------------------------------------------------------------------*/
+
 void free_item(Ht_item * item) {
-    // Frees an item
     free(item->key);
-    //free(item->value);
     free(item);
 }
 
+/*----------------------------------------------------------------------------------------------
+
+Функция:    free_hashtable
+Назначение: Функция "Освободить память под хеш-таблицу"
+Описание:   Функция освобождает выделенную память под хеш-таблицу
+Вход:       table - пара ключ-значение
+
+Выход:      -
+Возврат:    -
+
+-----------------------------------------------------------------------------------------------*/
+
 void free_hashtable(HashTable * table) {
-    // Frees the table
+
     for(int i = 0; i < table->size; i++) {
         Ht_item * item = table->items[i];
         if(item != NULL) {free(item);}
     }
-    //free_overflow_buckets(table);
+
     free(table->items);
     free(table);
 }
-// функция разрешает коллизию методом Linear probing
+
+/*----------------------------------------------------------------------------------------------
+
+Функция:    handle_collision
+Назначение: Функция "Разрешить коллизию"
+Описание:   Функция разрешает коллизию методом линейного пробирования
+Вход:       table - пара ключ-значение
+            index - индекс в хеш-таблице, посчитанный хеш-функцией
+            item  - пара ключ-значение
+
+Выход:      -
+Возврат:    -
+
+-----------------------------------------------------------------------------------------------*/
+
 void handle_collision(HashTable * table, unsigned long index, Ht_item * item) {
 
-    for(index = 0; index <= count_word; index++) {
+    for(index = 0; index < table->size; index++) {
         if(table->items[index] == NULL) {break;}
     }
 
-    if( (index == count_word) && (table->items[count_word] != NULL) ) {
+    if(index == table->size-1) {
         printf("Insert Error: Hash Table is full\n");
         return;
     }
@@ -136,55 +179,76 @@ void handle_collision(HashTable * table, unsigned long index, Ht_item * item) {
     table->count++;
 }
 
+/*----------------------------------------------------------------------------------------------
+
+Функция:    ht_insert
+Назначение: Функция "Разрешить коллизию"
+Описание:   Функция разрешает коллизию методом линейного пробирования
+Вход:       table - хеш-таблица
+            key   - ключ, слово из файла
+            value - значение, частота встречаемости слова в файле
+
+Выход:      -
+Возврат:    -
+
+-----------------------------------------------------------------------------------------------*/
+
 void ht_insert(HashTable * table, unsigned char * key, unsigned int value) {
-    // Create the item
+
     Ht_item * item = create_item(key, value);
 
-    // Compute the index
     unsigned long index = hash_function(key);
 
     Ht_item * current_item = table->items[index];
 
     if(current_item == NULL) {
-        // Key does not exist
+        // Ключа не существует
         if(table->count == table->size) {
-            // Hash Table Full
+
             printf("Insert Error: Hash Table is full\n");
-            // Remove the create item
+
             free_item(item);
             return;
         }
-        // Insert directly
+
         table->items[index] = item;
         table->count++;
     }
     else {
-        // Scenario 1: We only need to increment value
-        if(memcmp(current_item->key, key, current_item->size_key) == 0) {
+        if(memcmp(current_item->key, item->key, current_item->size_key+1) == 0) {
             table->items[index]->value++; // inc frequency
             free_item(item);
             return;
         }
         else {
-            // Scenario 2: Collision
             handle_collision(table, index, item);
             return;
         }
     }
 }
 
-int ht_serch(HashTable * table, unsigned char * key) {
-    // Searches the key in the hashtable
-    // and returns NULL if it doesn't exist
-    int index = hash_function(key);
+/*----------------------------------------------------------------------------------------------
 
-    //Ht_item * item = table->items[index];
-    // Ensure thst we move to items which are not NULL
-    while(table->items[index] != NULL) {
-        if(memcmp(table->items[index]->key, key, table->items[index]->size_key) == 0) {
-                return table->items[index]->value;
+Функция:    ht_serch
+Назначение: Функция "Поиск в таблице"
+Описание:   Функция разрешает коллизию методом линейного пробирования
+Вход:       table - пара ключ-значение
+            index - индекс в хеш-таблице, посчитанный хеш-функцией
+            item  - пара ключ-значение
+
+Выход:      -
+Возврат:    -
+
+-----------------------------------------------------------------------------------------------*/
+
+int ht_serch(HashTable * table, unsigned char * key) {
+
+    int index_search = 0;
+
+    for(; index_search < table->size; index_search++) {
+        if(!memcmp(table->items[index_search]->key, key, table->items[index_search]->size_key)) {
+                return table->items[index_search]->value;
         }
-        index++;
     }
     return 0;
 }
@@ -247,7 +311,19 @@ int is_not_space_or_other_symbols(unsigned char c) {
     return 0 == is_it_space_or_other_symbols(c);
 }
 
-// счёт начинается, если
+/*----------------------------------------------------------------------------------------------
+
+Функция:    count_start_if
+Назначение: Функция "Счёт начинается, если"
+Описание:   Функция проверяет, начинать ли счёт символов в зависимости от функции pred
+Вход:       str - массив символов типа unsigned char
+            pred - функция типа int
+
+Выход:      -
+Возврат:    количество подсчитанных символов, удовлетворяющих условию
+
+-----------------------------------------------------------------------------------------------*/
+
 int count_start_if(unsigned char * str, int (*pred)(unsigned char)) {
     int count = 0;
     while(*str!=0) {
@@ -260,15 +336,25 @@ int count_start_if(unsigned char * str, int (*pred)(unsigned char)) {
     return count;
 }
 
-// счётчик слов
+/*----------------------------------------------------------------------------------------------
+
+Функция:    count_words
+Назначение: Функция "Подсчёт слов"
+Описание:   Функция считает слова в массиве unsigned char
+Вход:       str - массив символов типа unsigned char
+
+Выход:      -
+Возврат:    количество подсчитанных слов в строке типа unsigned char
+
+-----------------------------------------------------------------------------------------------*/
+
 unsigned long count_words(unsigned char* str) {
-    //int length = strlen(str);
 
     unsigned long count = 0;
     int i = 0;
     while(1) {
-        int spaces_count = count_start_if(&str[i], is_it_space_or_other_symbols);
-        i += spaces_count;
+        int spaces_or_other_symbols_count = count_start_if(&str[i], is_it_space_or_other_symbols);
+        i += spaces_or_other_symbols_count;
         if(str[i] == '\0') {break;}
 
         int word_length = count_start_if(&str[i], is_not_space_or_other_symbols);
@@ -293,19 +379,22 @@ int count_start_and_end_if(unsigned char * str, int (*pred)(unsigned char)) {
 }
 
 
-int main() {    //int argc, char** argv
+int main(int argc, char* argv[]) {
     struct stat file_t;         // структура для считывания параметров файла с помощью функции stat
     FILE * file;                // сюда будет считан файл
-    char path[MAX_PATH];        // путь к файлу
+
     unsigned char * file_in;    // массив, в который будет записан файл
 
     setlocale(LC_ALL, "");
     printf("Введите путь к файлу: ");
-    scanf("%s", path);          // вводим путь к файлу
-    file = fopen(path, "r");
+
+    //scanf("%s", argv[1]);          // вводим путь к файлу
+    if(argc > 1) { scanf("%s", argv[1]);}
+    else {printf("Not arguments");}
+    file = fopen(argv[1], "r");
 
     if(file == NULL) {perror("Error"); exit(0);}    // проверка открытия файла
-    stat(path, &file_t);        // в экземпляр структуры file_t записываем данные о файле по введённому пути
+    stat(argv[1], &file_t);        // в экземпляр структуры file_t записываем данные о файле по введённому пути
 
     file_in = (unsigned char*)malloc(file_t.st_size*sizeof(unsigned char));   // выделяем память под массив
     if(fread(file_in, 1, file_t.st_size, file) != file_t.st_size) {perror("Error"); exit(0);}
@@ -341,7 +430,7 @@ int main() {    //int argc, char** argv
     }
 
     print_hashtable(ht);
-    print_search(ht, "как");
+    //print_search(ht, "до");
     free_hashtable(ht);
     fclose(file);
     free(file_in);
